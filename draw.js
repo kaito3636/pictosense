@@ -11,13 +11,10 @@
         r.onload=function(ev){
             var img=new Image();
             img.onload=function(){
-                var cvs=[].slice.call(document.querySelectorAll('canvas'));
-                if(cvs.length==0){alert('キャンバスがありません');document.body.removeChild(i);return;}
-                var ctx=cvs[0].getContext('2d');
-                var w=img.width, h=img.height;
-                var x=(cvs[0].width-w)/2, y=(cvs[0].height-h)/2;
-                ctx.drawImage(img, x, y, w, h);
-                document.body.removeChild(i);
+                var cvs=document.querySelector('#cvs');
+                if(!cvs){alert('キャンバスがありません');return;}
+                var ctx=cvs.getContext('2d');
+                ctx.drawImage(img,0,0,cvs.width,cvs.height);
             };
             img.src=ev.target.result;
         };
