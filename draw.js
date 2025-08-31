@@ -1,29 +1,27 @@
 function showImage(src){
   let img=new Image();
   img.onload=()=>{
-    let c=document.querySelector('canvas');
-    if(!c){alert("キャンバスなし");return;}
+    let cvs=[...document.querySelectorAll('canvas')];
+    if(!cvs.length){alert("キャンバスなし");return;}
+
+    // 一番大きいキャンバスを選ぶ
+    cvs.sort((a,b)=>(b.width*b.height)-(a.width*a.height));
+    let c=cvs[0];
+
     let ctx=c.getContext('2d');
     ctx.clearRect(0,0,c.width,c.height);
 
-    // キャンバスの内部サイズ（属性値）と見た目サイズ（CSS）
-    let rect = c.getBoundingClientRect();
-    let ratio = rect.width / c.width; 
-    // 例: 内部1125, 表示375 → ratio=0.333
+    // キャンバスと画像の情報を確認
+    alert(`canvas=${c.width}x${c.height}, image=${img.width}x${img.height}`);
 
-    // 縮小率（縦横比維持）
-    let scale = Math.min(c.width/img.width, c.height/img.height);
+    // 縦横比を維持して縮小
+    let scale=Math.min(c.width/img.width,c.height/img.height);
+    let w=img.width*scale, h=img.height*scale;
+    let x=(c.width-w)/2, y=(c.height-h)/2;
 
-    // 内部サイズに描画するので ratio は掛けない
-    let w = img.width * scale;
-    let h = img.height * scale;
-    let x = (c.width - w)/2;
-    let y = (c.height - h)/2;
+    alert(`draw=${w}x${h} at (${x},${y})`);
 
-    // デバッグ表示
-    alert(`canvas=${c.width}x${c.height}, rect=${Math.round(rect.width)}x${Math.round(rect.height)}, img=${img.width}x${img.height}, draw=${w}x${h}`);
-
-    ctx.drawImage(img, x, y, w, h);
+    ctx.drawImage(img,x,y,w,h);
   };
-  img.src = src;
+  img.src=src;
 }
