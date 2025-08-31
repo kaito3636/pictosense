@@ -93,7 +93,7 @@ function showOnOverlay(dataURL){
 
     // ★ここで「3倍」に調整（等倍を超えないよう上限1でクリップ）
     const SCALE_MULTIPLIER = 6;
-    const scaleDisplay = Math.min(baseFit * SCALE_MULTIPLIER, 1);
+    const scaleDisplay = Math.min(baseFit * SCALE_MULTIPLIER, 3);
 
     const w = img.width  * scaleDisplay;
     const h = img.height * scaleDisplay;
