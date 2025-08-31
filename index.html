@@ -6,7 +6,13 @@
 </head>
 <body>
   <canvas id="cvs" width="800" height="600" style="border:1px solid #000;"></canvas>
-  
+
   <script src="draw.js"></script>
+  <script>
+    // ページを開いた瞬間に draw.js を実行
+    (function(){
+      if(typeof window.onload === 'function') window.onload();
+    })();
+  </script>
 </body>
 </html>
