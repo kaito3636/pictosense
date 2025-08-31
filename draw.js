@@ -1,4 +1,4 @@
-(function(){
+window.startUpload = function(){
   var i=document.createElement('input');
   i.type='file';
   i.accept='image/*';
@@ -23,4 +23,4 @@
   };
 
   i.click();
-})();
+};
