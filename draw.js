@@ -1,4 +1,4 @@
-(function(){
+window.startUpload = function(){
   let i=document.createElement('input');
   i.type='file';
   i.accept='image/*';
@@ -13,7 +13,7 @@
         let ctx=c.getContext('2d');
         ctx.clearRect(0,0,c.width,c.height);
 
-        // 縦横比を維持して中央に収める
+        // 縦横比維持で中央に収める
         let scale=Math.min(c.width/img.width, c.height/img.height);
         let w=img.width*scale;
         let h=img.height*scale;
@@ -26,4 +26,4 @@
     r.readAsDataURL(f);
   };
   i.click();
-})();
+};
