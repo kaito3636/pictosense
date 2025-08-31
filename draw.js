@@ -1,92 +1,120 @@
-// ブックマーク側で s.onload=()=>startUpload(); を呼んでね
+// ブックマーク側は s.onload=()=>startUpload();
 window.startUpload = function () {
-  const pick = document.createElement('input');
-  pick.type = 'file';
-  pick.accept = 'image/*';
-  pick.onchange = (e) => {
-    const f = e.target.files && e.target.files[0];
-    if (!f) return;
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
 
-    const isHEIC = (f.type === 'image/heic') || /\.heic$/i.test(f.name);
+    const isHEIC = (file.type === 'image/heic') || /\.heic$/i.test(file.name);
     if (isHEIC) {
-      // 必要な時だけ heic2any をロード
+      // 必要時のみ heic2any をロードしてJPEG化
       const s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
-      s.onload = () => heic2any({ blob: f, toType: 'image/jpeg' })
-        .then((out) => blobToDataURL(out).then(drawToCanvas))
+      s.onload = () => heic2any({ blob: file, toType: 'image/jpeg' })
+        .then(out => blobToDataURL(out).then(showOnOverlay))
         .catch(() => alert('HEIC変換に失敗しました'));
       document.body.appendChild(s);
     } else {
       const r = new FileReader();
-      r.onload = (ev) => drawToCanvas(ev.target.result);
-      r.readAsDataURL(f);
+      r.onload = ev => showOnOverlay(ev.target.result);
+      r.readAsDataURL(file);
     }
   };
-  pick.click();
+  input.click();
 };
 
-function blobToDataURL(blob) {
-  return new Promise((resolve) => {
-    const r = new FileReader();
-    r.onload = (ev) => resolve(ev.target.result);
+function blobToDataURL(blob){
+  return new Promise(res=>{
+    const r=new FileReader();
+    r.onload = ev => res(ev.target.result);
     r.readAsDataURL(blob);
   });
 }
 
-// 画面上で実際に見えているキャンバスを優先して取得
-function pickCanvas() {
-  // 画面中央の要素から最寄りのcanvasを探す（最も「見えている」可能性が高い）
-  let center = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-  let c = center && (center.tagName === 'CANVAS' ? center : (center.closest ? center.closest('canvas') : null));
-
-  // それでも見つからない/サイズが小さい場合は「表示中(canvas.getBoundingClientRect>0)」の最大を選ぶ
-  const visibles = Array.from(document.querySelectorAll('canvas')).filter((cv) => {
-    const r = cv.getBoundingClientRect();
-    const st = getComputedStyle(cv);
-    return r.width > 50 && r.height > 50 && st.display !== 'none' && st.visibility !== 'hidden' && st.opacity !== '0';
-  });
-  if (!c && visibles.length) {
-    visibles.sort((a, b) => {
-      const ra = a.getBoundingClientRect(), rb = b.getBoundingClientRect();
-      return (rb.width * rb.height) - (ra.width * ra.height);
-    });
-    c = visibles[0];
-  }
-  return c || null;
+// 画面で一番見えているキャンバスを拾う
+function pickVisibleCanvas(){
+  const cs = Array.from(document.querySelectorAll('canvas'));
+  const visibles = cs.map(c=>{
+    const r=c.getBoundingClientRect();
+    return {c, area: Math.max(0,r.width)*Math.max(0,r.height), r};
+  }).filter(x=>x.area>50*50);
+  if(!visibles.length) return null;
+  visibles.sort((a,b)=>b.area-a.area);
+  return visibles[0].c;
 }
 
-function drawToCanvas(src) {
+// 画像をゲームキャンバスの上に重ねた専用キャンバスに描く
+function showOnOverlay(dataURL){
+  const base = pickVisibleCanvas();
+  if (!base) return alert('キャンバスが見つかりません');
+
+  const rect = base.getBoundingClientRect();
+  // 既存のオーバーレイを再利用 or 作成
+  let overlay = document.getElementById('px_overlay_canvas');
+  if (!overlay) {
+    overlay = document.createElement('canvas');
+    overlay.id = 'px_overlay_canvas';
+    overlay.style.position = 'absolute';
+    overlay.style.pointerEvents = 'none'; // 描画の邪魔をしない
+    overlay.style.zIndex = '999999';      // 最前面
+    document.body.appendChild(overlay);
+    // 画面スクロール/リサイズに追従
+    const position = ()=>{
+      const r=base.getBoundingClientRect();
+      overlay.style.left = (r.left + window.scrollX) + 'px';
+      overlay.style.top  = (r.top  + window.scrollY) + 'px';
+      overlay.style.width  = r.width + 'px';
+      overlay.style.height = r.height + 'px';
+      // 内部解像度をCSSに合わせて高DPI対応
+      const dpr = window.devicePixelRatio || 1;
+      overlay.width  = Math.max(1, Math.round(r.width  * dpr));
+      overlay.height = Math.max(1, Math.round(r.height * dpr));
+    };
+    position();
+    window.addEventListener('scroll', position, {passive:true});
+    window.addEventListener('resize', position);
+  } else {
+    // 位置更新
+    const r=base.getBoundingClientRect();
+    overlay.style.left = (r.left + window.scrollX) + 'px';
+    overlay.style.top  = (r.top  + window.scrollY) + 'px';
+    overlay.style.width  = r.width + 'px';
+    overlay.style.height = r.height + 'px';
+    const dpr = window.devicePixelRatio || 1;
+    overlay.width  = Math.max(1, Math.round(r.width  * dpr));
+    overlay.height = Math.max(1, Math.round(r.height * dpr));
+  }
+
+  const ctx = overlay.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(1,0,0,1,0,0);       // リセット
+  ctx.scale(dpr, dpr);                  // CSSピクセル基準で描けるように
+
+  // 背景は触らない（透明）→ ゲームの絵の上に重ねて見える
+  // ctx.clearRect(0,0,overlay.width,overlay.height); // 透過のまま使う
+
   const img = new Image();
-  img.onload = () => {
-    const c = pickCanvas();
-    if (!c) return alert('キャンバスが見つかりません');
+  img.onload = ()=>{
+    const cssW = overlay.clientWidth;
+    const cssH = overlay.clientHeight;
 
-    const ctx = c.getContext('2d');
+    // 見た目のキャンバスにフィット（拡大しない）
+    let scale = Math.min(cssW / img.width, cssH / img.height, 1);
 
-    // 内部解像度と見た目サイズ
-    const rect = c.getBoundingClientRect();
-    const toInternalX = c.width / rect.width || 1;   // 例: 1125/375 = 3
-    const toInternalY = c.height / rect.height || 1; // 例: 1125/375 = 3
-
-    // 見た目のキャンバスに収まる倍率（拡大しない）
-    let scaleDisplay = Math.min(rect.width / img.width, rect.height / img.height, 1);
-
-    // まだ大きく見える場合はここで手動縮小（必要に応じて 0.33 → 0.25 → 0.2 に下げる）
+    // まだ大きく見えるなら 0.25 / 0.2 などに下げてOK
     const MANUAL_SHRINK = 0.33;
-    scaleDisplay *= MANUAL_SHRINK;
+    scale *= MANUAL_SHRINK;
 
-    // 内部描画サイズへ変換
-    const w = img.width * scaleDisplay * toInternalX;
-    const h = img.height * scaleDisplay * toInternalY;
-    const x = (c.width - w) / 2;
-    const y = (c.height - h) / 2;
+    const w = img.width  * scale;
+    const h = img.height * scale;
+    const x = (cssW - w) / 2;
+    const y = (cssH - h) / 2;
 
-    // 描画
-    ctx.save();
-    ctx.clearRect(0, 0, c.width, c.height);
+    ctx.clearRect(0,0,cssW,cssH);
     ctx.drawImage(img, x, y, w, h);
-    ctx.restore();
   };
-  img.onerror = () => alert('画像の読み込みに失敗しました');
-  img.src = src;
+  img.onerror = ()=>alert('画像の読み込みに失敗しました');
+  img.src = dataURL;
 }
