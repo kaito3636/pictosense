@@ -6,18 +6,20 @@ function showImage(src){
     let ctx=c.getContext('2d');
     ctx.clearRect(0,0,c.width,c.height);
 
-    // 基本の縮小率（キャンバスに収まるよう計算）
-    let scale=Math.min(c.width/img.width, c.height/img.height);
+    // キャンバスの内部サイズと表示サイズを取得
+    let rect = c.getBoundingClientRect();
+    let scaleFix = rect.width / c.width; // ←補正係数（例: 375/1125 = 0.333）
 
-    // ★さらに手動で縮小（例：1/4にするなら 0.25）
-    let manualShrink=0.25;  
+    // 縮小率（縦横比維持）
+    let scale = Math.min(c.width/img.width, c.height/img.height);
 
-    let w=img.width*scale*manualShrink;
-    let h=img.height*scale*manualShrink;
-    let x=(c.width-w)/2;
-    let y=(c.height-h)/2;
+    // 補正をかけて「見た目に合うサイズ」にする
+    let w = img.width * scale * scaleFix;
+    let h = img.height * scale * scaleFix;
+    let x = (c.width - w)/2;
+    let y = (c.height - h)/2;
 
-    ctx.drawImage(img,x,y,w,h);
+    ctx.drawImage(img, x, y, w, h);
   };
-  img.src=src;
+  img.src = src;
 }
