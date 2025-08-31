@@ -2,19 +2,17 @@
     var i = document.createElement('input');
     i.type = 'file';
     i.accept = 'image/*';
-    i.style.position = 'fixed';
-    i.style.left = '-9999px';
+    i.style.display = 'none';  // 隠す
     document.body.appendChild(i);
 
     i.onchange = function(ev){
         var f = ev.target.files[0];
-        if(!f){ document.body.removeChild(i); return; }
+        if(!f) return;
         var r = new FileReader();
         r.onload = function(ev){
             var img = new Image();
             img.onload = function(){
                 var cvs = document.querySelector('#cvs');
-                if(!cvs){ alert('キャンバスがありません'); return; }
                 var ctx = cvs.getContext('2d');
                 ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
             };
@@ -23,8 +21,8 @@
         r.readAsDataURL(f);
     };
 
-    // ページ読み込み時に即ファイル選択を出す
-    window.onload = function(){
+    // ボタンクリックでファイル選択ダイアログを開く
+    document.getElementById("btn").addEventListener("click", function(){
         i.click();
-    };
+    });
 })();
