@@ -10,7 +10,18 @@ window.startUpload = function(){
       img.onload=()=>{
         let c=document.querySelector('canvas');
         if(!c)return alert('キャンバスが見つかりません');
-        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+        let ctx=c.getContext('2d');
+        ctx.clearRect(0,0,c.width,c.height);
+
+        // スケール計算（縦横比を維持）
+        let scale=Math.min(c.width/img.width, c.height/img.height);
+        let w=img.width*scale;
+        let h=img.height*scale;
+
+        // 中央に配置
+        let x=(c.width-w)/2;
+        let y=(c.height-h)/2;
+        ctx.drawImage(img,x,y,w,h);
       };
       img.src=ev.target.result;
     };
