@@ -6,15 +6,18 @@ function showImage(src){
     let ctx=c.getContext('2d');
     ctx.clearRect(0,0,c.width,c.height);
 
-    // キャンバスの実サイズと見た目のサイズを出す
-    let rect = c.getBoundingClientRect();
-    alert(
-      `canvas属性サイズ = ${c.width}x${c.height}\n` +
-      `canvas表示サイズ = ${Math.round(rect.width)}x${Math.round(rect.height)}\n` +
-      `画像サイズ = ${img.width}x${img.height}`
-    );
+    // 基本の縮小率（キャンバスに収まるよう計算）
+    let scale=Math.min(c.width/img.width, c.height/img.height);
 
-    // 今は描画しない
+    // ★さらに手動で縮小（例：1/4にするなら 0.25）
+    let manualShrink=0.25;  
+
+    let w=img.width*scale*manualShrink;
+    let h=img.height*scale*manualShrink;
+    let x=(c.width-w)/2;
+    let y=(c.height-h)/2;
+
+    ctx.drawImage(img,x,y,w,h);
   };
   img.src=src;
 }
