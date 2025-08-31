@@ -13,8 +13,8 @@
         let ctx=c.getContext('2d');
         ctx.clearRect(0,0,c.width,c.height);
 
-        // キャンバス内に収めて中央表示
-        let scale=Math.min(c.width/img.width,c.height/img.height);
+        // 縦横比を維持して中央に収める
+        let scale=Math.min(c.width/img.width, c.height/img.height);
         let w=img.width*scale;
         let h=img.height*scale;
         let x=(c.width-w)/2;
