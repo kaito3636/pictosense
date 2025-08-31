@@ -6,15 +6,8 @@
 </head>
 <body>
   <canvas id="cvs" width="800" height="600" style="border:1px solid #000;"></canvas>
-
-  <!-- ✅ JSはDOMContentLoaded後に実行 -->
-  <script>
-    document.addEventListener("DOMContentLoaded", () => {
-      const s = document.createElement("script");
-      s.src = "./draw.js?v=" + Date.now();  // キャッシュ回避
-      document.body.appendChild(s);
-    });
-  </script>
+  <br>
+  <button id="btn">画像をアップロード</button>
+  <script src="draw.js"></script>
 </body>
 </html>
-
