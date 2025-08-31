@@ -7,19 +7,23 @@ function showImage(src){
     let ctx=c.getContext('2d');
     ctx.clearRect(0,0,c.width,c.height);
 
-    // 通常のスケール
-    let scale=Math.min(c.width/img.width,c.height/img.height);
+    // キャンバスの表示サイズと内部サイズ
+    let rect = c.getBoundingClientRect();
+    let scaleFixX = c.width / rect.width;   // 1125/375 = 3
+    let scaleFixY = c.height / rect.height; // 同じく3
 
-    // 👇さらに縮小（例: 0.25 = 1/4）
-    let manualShrink=0.25;
+    // 「見た目のキャンバス」に収まるように計算
+    let scale = Math.min(rect.width/img.width, rect.height/img.height);
 
-    let w=img.width*scale*manualShrink;
-    let h=img.height*scale*manualShrink;
-    let x=(c.width-w)/2;
-    let y=(c.height-h)/2;
+    // 実際に描画する時は内部解像度に直す
+    let w = img.width * scale * scaleFixX;
+    let h = img.height * scale * scaleFixY;
+    let x = (c.width - w)/2;
+    let y = (c.height - h)/2;
 
-    alert(`final draw = ${w}x${h} at (${x},${y})`);
-    ctx.drawImage(img,x,y,w,h);
+    alert(`canvas表示=${rect.width}x${rect.height}, img=${img.width}x${img.height}, draw内部=${w}x${h}`);
+
+    ctx.drawImage(img, x, y, w, h);
   };
   img.src=src;
 }
