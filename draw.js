@@ -1,26 +1,20 @@
 window.startUpload = function(){
-  var i=document.createElement('input');
+  let i=document.createElement('input');
   i.type='file';
   i.accept='image/*';
-  i.style.display='none';
-  document.body.appendChild(i);
-
-  i.onchange=function(ev){
-    var f=ev.target.files[0];
-    if(!f) return;
-    var r=new FileReader();
-    r.onload=function(ev){
-      var img=new Image();
-      img.onload=function(){
-        var cvs=document.querySelector('canvas');
-        if(!cvs){alert('キャンバスが見つかりません');return;}
-        var ctx=cvs.getContext('2d');
-        ctx.drawImage(img,0,0,cvs.width,cvs.height);
+  i.onchange=e=>{
+    let f=e.target.files[0]; if(!f)return;
+    let r=new FileReader();
+    r.onload=ev=>{
+      let img=new Image();
+      img.onload=()=>{
+        let c=document.querySelector('canvas');
+        if(!c)return alert('キャンバスが見つかりません');
+        c.getContext('2d').drawImage(img,0,0,c.width,c.height);
       };
       img.src=ev.target.result;
     };
     r.readAsDataURL(f);
   };
-
   i.click();
 };
