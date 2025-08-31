@@ -13,21 +13,7 @@ window.startUpload = function(){
         let ctx=c.getContext('2d');
         ctx.clearRect(0,0,c.width,c.height);
 
-        // 縦横比を維持して「キャンバス内に収まる」よう縮小
+        // スケール計算
         let scale=Math.min(c.width/img.width, c.height/img.height);
         let w=img.width*scale;
-        let h=img.height*scale;
-
-        // 中央配置
-        let x=(c.width-w)/2;
-        let y=(c.height-h)/2;
-
-        ctx.drawImage(img,x,y,w,h);
-      };
-      img.src=ev.target.result;
-    };
-    r.readAsDataURL(f);
-  };
-  i.click();
-};
-``
+        let h=img.heigh
