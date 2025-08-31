@@ -1,29 +1,37 @@
 window.startUpload = function(){
   let i=document.createElement('input');
-  i.type='file';
-  i.accept='image/*';
+  i.type='file'; i.accept='image/*';
   i.onchange=e=>{
     let f=e.target.files[0]; if(!f)return;
     let r=new FileReader();
     r.onload=ev=>{
-      let img=new Image();
-      img.onload=()=>{
-        let c=document.querySelector('canvas');
-        if(!c)return alert('キャンバスが見つかりません');
-        let ctx=c.getContext('2d');
-        ctx.clearRect(0,0,c.width,c.height);
-
-        // スケール計算（縦横比を維持）
-        let scale=Math.min(c.width/img.width, c.height/img.height);
-        let w=img.width*scale;
-        let h=img.height*scale;
-
-        // 中央に配置
-        let x=(c.width-w)/2;
-        let y=(c.height-h)/2;
-        ctx.drawImage(img,x,y,w,h);
-      };
+      let img=document.createElement('img');
       img.src=ev.target.result;
+      document.body.appendChild(img);
+
+      // Cropper.jsでトリミングUI開始
+      let cropper=new Cropper(img,{
+        aspectRatio:NaN, // 自由
+        viewMode:1,
+        autoCropArea:1,
+      });
+
+      // 決定ボタン
+      let btn=document.createElement('button');
+      btn.innerText="決定";
+      btn.onclick=()=>{
+        let cvs=document.querySelector('canvas');
+        let ctx=cvs.getContext('2d');
+        ctx.clearRect(0,0,cvs.width,cvs.height);
+
+        let cropped=cropper.getCroppedCanvas({width:cvs.width,height:cvs.height});
+        ctx.drawImage(cropped,0,0,cvs.width,cvs.height);
+
+        // UIを消す
+        img.remove();
+        btn.remove();
+      };
+      document.body.appendChild(btn);
     };
     r.readAsDataURL(f);
   };
