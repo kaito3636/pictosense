@@ -164,7 +164,7 @@ function showOnOverlay(dataURL){
     const baseFit = Math.min(cssW / img.width, cssH / img.height);
 
     // ★オーバー拡大（ズーム演出）：2,3,4 など好みで
-    const OVERSCALE = 3;
+    const OVERSCALE = 1;
     const scaleDisplay = baseFit * OVERSCALE;
 
     const w = img.width  * scaleDisplay;
