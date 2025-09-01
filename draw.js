@@ -1,39 +1,31 @@
-function showOnOverlay(dataURL){
-  const base = pickVisibleCanvas();
-  if (!base) return alert('キャンバスが見つかりません');
+(function(){
+  const url = window.__PX_DATAURL;
+  if (!url) return alert("画像データが見つかりません");
+
+  const pickCanvas = () => {
+    const list = Array.from(document.querySelectorAll('canvas')).map(c=>{
+      const r=c.getBoundingClientRect();
+      return {c, area:r.width*r.height};
+    }).filter(x=>x.area>2500).sort((a,b)=>b.area-a.area);
+    return list[0]?.c || null;
+  };
+
+  const base = pickCanvas();
+  if (!base) return alert("キャンバスが見つかりません");
 
   const img = new Image();
-  img.onload = ()=>{
+  img.onload = () => {
     const ctx = base.getContext('2d');
+    ctx.drawImage(img, 0, 0, base.width, base.height);
 
-    // キャンバスサイズに合わせる
-    const w = base.width;
-    const h = base.height;
-
-    // ローカルに描画（見た目）
-    ctx.drawImage(img, 0, 0, w, h);
-
-    // ====== ここから共有処理 ======
+    // socketで共有（イベント名はサイトに合わせて調整）
     try {
-      // ピクセルを分解して送るのは重いので、サンプルでは小さな点に変換
-      const STEP = 10; // ドット間隔（調整可）
-      for (let y = 0; y < h; y += STEP) {
-        for (let x = 0; x < w; x += STEP) {
-          // socket.emitでサーバーに「点を描いた」と送信
-          socket.emit("draw", {
-            x: x,
-            y: y,
-            color: "#000000", // とりあえず黒
-            size: 2
-          });
-        }
+      if (window.socket && socket.emit) {
+        socket.emit("draw", { type:"image", data:url });
       }
-      console.log("画像データをsocket.io経由で送信しました");
     } catch(e) {
-      console.error("socket.io送信に失敗:", e);
-      alert("共有に失敗しました（socket未検出かも）");
+      console.log("共有失敗:", e);
     }
   };
-  img.onerror = ()=>alert('画像の読み込みに失敗しました');
-  img.src = dataURL;
-}
+  img.src = url;
+})();
