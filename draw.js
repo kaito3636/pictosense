@@ -2,7 +2,6 @@
   const url = window.__PX_DATAURL;
   if (!url) return alert("画像データが見つかりません");
 
-  // キャンバスを探す
   const pickCanvas = () => {
     const list = Array.from(document.querySelectorAll('canvas')).map(c=>{
       const r=c.getBoundingClientRect();
@@ -17,36 +16,22 @@
   const img = new Image();
   img.onload = () => {
     const ctx = base.getContext('2d');
+    const cw=base.width,ch=base.height;
+    const s=Math.min(cw/img.naturalWidth,ch/img.naturalHeight);
+    const w=Math.round(img.naturalWidth*s),h=Math.round(img.naturalHeight*s);
+    const x=Math.round((cw-w)/2),y=Math.round((ch-h)/2);
+    ctx.drawImage(img,x,y,w,h);
 
-    // キャンバスサイズにフィットさせる
-    const cw = base.width, ch = base.height;
-    const s = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-    const w = Math.round(img.naturalWidth * s);
-    const h = Math.round(img.naturalHeight * s);
-    const x = Math.round((cw - w) / 2);
-    const y = Math.round((ch - h) / 2);
-
-    // ローカル描画
-    ctx.drawImage(img, x, y, w, h);
-
-    // ===== ソケット共有 =====
-    try {
-      if (window.socket && typeof socket.emit === "function") {
-        // ピクトセンスの実装に合わせてイベント名を調整
-        // 候補: "draw", "stroke", "line"
-        socket.emit("draw", {
-          type: "image",
-          data: url,   // DataURLごと送る（サイト側が対応していれば表示される）
-          x, y, w, h
-        });
-        console.log("[pictosense] socket.emit で共有しました");
-      } else {
-        console.warn("[pictosense] socket が見つかりませんでした");
+    // socket共有（イベント名は実装に合わせて変更）
+    try{
+      if(window.socket && typeof socket.emit==="function"){
+        socket.emit("draw",{type:"image",data:url,x,y,w,h});
+        console.log("[pictosense] 共有送信しました");
+      }else{
+        console.warn("[pictosense] socket未検出");
       }
-    } catch(e){
-      console.error("[pictosense] 共有に失敗:", e);
-    }
+    }catch(e){ console.error("共有失敗:",e); }
   };
-  img.onerror = () => alert("画像読み込みに失敗しました");
-  img.src = url;
+  img.onerror=()=>alert("画像の読み込みに失敗しました");
+  img.src=url;
 })();
