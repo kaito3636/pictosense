@@ -4,7 +4,7 @@ const SOCKET_EVENT = 'stroke';      // ← 'stroke' がダメなら 'line' → '
 const PAYLOAD_MODE = 'points';      // 'points' | 'xyxy' | 'path'
 const LINE_WIDTH   = 8;             // 送信ストロークの太さ
 const LINE_COLOR   = '#000';        // 送信ストロークの色
-const OVERSCALE    = 3;             // オーバーレイの拡大倍率（2,3,4 など）
+const OVERSCALE    = 1;             // オーバーレイの拡大倍率（2,3,4 など）
 
 // ===================== エントリ（ブクマ経由で呼ぶ） =====================
 window.startUpload = function () {
