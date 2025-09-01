@@ -1,37 +1,46 @@
-(function(){
-  const url = window.__PX_DATAURL;
-  if (!url) return alert("画像データが見つかりません");
+// pictosense/draw.js
+// ========== エントリ（ブクマから onload 後に呼ばれる） ==========
+window.startUpload = function () {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
 
-  const pickCanvas = () => {
-    const list = Array.from(document.querySelectorAll('canvas')).map(c=>{
-      const r=c.getBoundingClientRect();
-      return {c, area:r.width*r.height};
-    }).filter(x=>x.area>2500).sort((a,b)=>b.area-a.area);
-    return list[0]?.c || null;
+    const isHEIC = (file.type === 'image/heic') || /\.heic$/i.test(file.name) || file.type === 'application/octet-stream';
+    if (isHEIC) {
+      const s = document.createElement('script');
+      s.src = 'https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js';
+      s.onload = () => heic2any({ blob: file, toType: 'image/jpeg' })
+        .then(out => blobToDataURL(out).then(showOnOverlay))
+        .catch(() => alert('HEIC変換に失敗しました'));
+      document.body.appendChild(s);
+    } else {
+      const r = new FileReader();
+      r.onload = ev => showOnOverlay(ev.target.result);
+      r.readAsDataURL(file);
+    }
   };
+  input.click();
+};
 
-  const base = pickCanvas();
-  if (!base) return alert("キャンバスが見つかりません");
+// ========== ユーティリティ ==========
+function blobToDataURL(blob){
+  return new Promise((res, rej)=>{
+    const r = new FileReader();
+    r.onload = ev => res(ev.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
 
-  const img = new Image();
-  img.onload = () => {
-    const ctx = base.getContext('2d');
-    const cw=base.width,ch=base.height;
-    const s=Math.min(cw/img.naturalWidth,ch/img.naturalHeight);
-    const w=Math.round(img.naturalWidth*s),h=Math.round(img.naturalHeight*s);
-    const x=Math.round((cw-w)/2),y=Math.round((ch-h)/2);
-    ctx.drawImage(img,x,y,w,h);
-
-    // socket共有（イベント名は実装に合わせて変更）
-    try{
-      if(window.socket && typeof socket.emit==="function"){
-        socket.emit("draw",{type:"image",data:url,x,y,w,h});
-        console.log("[pictosense] 共有送信しました");
-      }else{
-        console.warn("[pictosense] socket未検出");
-      }
-    }catch(e){ console.error("共有失敗:",e); }
-  };
-  img.onerror=()=>alert("画像の読み込みに失敗しました");
-  img.src=url;
-})();
+function pickVisibleCanvas(){
+  const cs = Array.from(document.querySelectorAll('canvas'));
+  const visibles = cs.map(c=>{
+    const r=c.getBoundingClientRect();
+    return {c, area: Math.max(0,r.width)*Math.max(0,r.height), r};
+  }).filter(x=>x.area>50*50);
+  if(!visibles.length) return null;
+  visibles.sort((a,b)=>b.area-a.area);
+  return visibles
