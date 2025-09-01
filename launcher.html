@@ -7,17 +7,21 @@
 <body>
 <script>
 (function(){
-  const i=document.createElement('input');
-  i.type='file';
-  i.accept='image/*';
-  i.onchange=e=>{
-    const f=e.target.files[0];
-    if(!f)return;
-    const r=new FileReader();
-    r.onload=ev=>{
-      window.__PX_DATAURL=ev.target.result;
-      const s=document.createElement('script');
-      s.src='https://kaito3636.github.io/pictosense/draw.js?'+Date.now();
+  // 画像ファイル選択
+  const i = document.createElement('input');
+  i.type = 'file';
+  i.accept = 'image/*';
+  i.onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => {
+      // DataURLをwindowに保存しておく
+      window.__PX_DATAURL = ev.target.result;
+
+      // draw.js を読み込んで処理続行
+      const s = document.createElement('script');
+      s.src = 'https://kaito3636.github.io/pictosense/draw.js?' + Date.now();
       document.body.appendChild(s);
     };
     r.readAsDataURL(f);
