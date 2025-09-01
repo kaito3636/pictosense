@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Pictosense Launcher</title>
+</head>
+<body>
+<script>
+(function(){
+  const i=document.createElement('input');
+  i.type='file';
+  i.accept='image/*';
+  i.onchange=e=>{
+    const f=e.target.files[0];
+    if(!f)return;
+    const r=new FileReader();
+    r.onload=ev=>{
+      window.__PX_DATAURL=ev.target.result;
+      const s=document.createElement('script');
+      s.src='https://kaito3636.github.io/pictosense/draw.js?'+Date.now();
+      document.body.appendChild(s);
+    };
+    r.readAsDataURL(f);
+  };
+  i.click();
+})();
+</script>
+</body>
+</html>
