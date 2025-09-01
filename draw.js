@@ -79,7 +79,7 @@ function trySocketShare(dataURL, rect){
   try{
     if (window.socket && typeof socket.emit === 'function') {
       const payload = { type: 'image', data: dataURL, x: rect.x, y: rect.y, w: rect.w, h: rect.h };
-      const events = ['line']; // ★実装に合わせて先頭を正解に
+      const events = ['drawLine']; // ★実装に合わせて先頭を正解に
       for (const ev of events) {
         try { socket.emit(ev, payload); console.log('[share] socket.emit:', ev); return true; } catch {}
       }
