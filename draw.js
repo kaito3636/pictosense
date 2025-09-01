@@ -1,5 +1,12 @@
 // pictosense/draw.js
-// ========== エントリ（ブクマから onload 後に呼ばれる） ==========
+// ===================== 設定（ここだけ触ればOK） =====================
+const SOCKET_EVENT = 'stroke';      // ← 'stroke' がダメなら 'line' → 'drawLine' → 'draw' の順で
+const PAYLOAD_MODE = 'points';      // 'points' | 'xyxy' | 'path'
+const LINE_WIDTH   = 8;             // 送信ストロークの太さ
+const LINE_COLOR   = '#000';        // 送信ストロークの色
+const OVERSCALE    = 3;             // オーバーレイの拡大倍率（2,3,4 など）
+
+// ===================== エントリ（ブクマ経由で呼ぶ） =====================
 window.startUpload = function () {
   const input = document.createElement('input');
   input.type = 'file';
@@ -25,11 +32,11 @@ window.startUpload = function () {
   input.click();
 };
 
-// ========== ユーティリティ ==========
+// ===================== ユーティリティ =====================
 function blobToDataURL(blob){
   return new Promise((res, rej)=>{
     const r = new FileReader();
-    r.onload = ev => res(ev.target.result);
+    r.onload  = ev => res(ev.target.result);
     r.onerror = rej;
     r.readAsDataURL(blob);
   });
@@ -74,80 +81,58 @@ function ensureOverlay(base){
   return overlay;
 }
 
-// ========== 共有（socket優先→擬似描画） ==========
-function trySocketShare(dataURL, rect){
+// ===================== 送信用（socket直送） =====================
+function buildPayload(rect, base, overlay){
+  // overlay の CSS座標 → 実キャンバス座標へ変換
+  const cx = base.width  / overlay.clientWidth;
+  const cy = base.height / overlay.clientHeight;
+
+  if (PAYLOAD_MODE === 'xyxy') {
+    return {
+      x1: Math.round(rect.x * cx),
+      y1: Math.round(rect.y * cy),
+      x2: Math.round((rect.x + rect.w) * cx),
+      y2: Math.round(rect.y * cy),
+      size: LINE_WIDTH,
+      color: LINE_COLOR
+    };
+  }
+  if (PAYLOAD_MODE === 'path') {
+    return {
+      path: [
+        { x: Math.round(rect.x * cx),           y: Math.round(rect.y * cy) },
+        { x: Math.round((rect.x + rect.w) * cx),y: Math.round(rect.y * cy) }
+      ],
+      width: LINE_WIDTH,
+      color: LINE_COLOR
+    };
+  }
+  // 'points'（デフォルト）
+  return {
+    points: [
+      [ Math.round(rect.x * cx),            Math.round(rect.y * cy) ],
+      [ Math.round((rect.x + rect.w) * cx), Math.round(rect.y * cy) ]
+    ],
+    width: LINE_WIDTH,
+    color: LINE_COLOR
+  };
+}
+
+function trySocketShare(rect, base, overlay){
   try{
     if (window.socket && typeof socket.emit === 'function') {
-      const payload = { type: 'image', data: dataURL, x: rect.x, y: rect.y, w: rect.w, h: rect.h };
-      const events = ['draw']; // ★実装に合わせて先頭を正解に
-      for (const ev of events) {
-        try { socket.emit(ev, payload); console.log('[share] socket.emit:', ev); return true; } catch {}
-      }
+      const payload = buildPayload(rect, base, overlay);
+      socket.emit(SOCKET_EVENT, payload);
+      console.log('[share] emit:', SOCKET_EVENT, payload);
+      return true;
     }
-  }catch{}
+  }catch(e){
+    console.log('[share] socket送信失敗', e);
+  }
   return false;
 }
 
-function emulateStrokeFromOverlay(overlay, base, opt){
-  const step = Math.max(2, opt?.step ?? 8);
-  const thr  = Math.min(255, Math.max(0, opt?.threshold ?? 160));
-  const maxRuns = opt?.maxRuns ?? 3000;
-
-  const cssW = overlay.clientWidth, cssH = overlay.clientHeight;
-  const dpr = window.devicePixelRatio || 1;
-
-  const tmp = document.createElement('canvas');
-  tmp.width  = Math.max(1, Math.round(cssW * dpr));
-  tmp.height = Math.max(1, Math.round(cssH * dpr));
-  const tctx = tmp.getContext('2d');
-  tctx.drawImage(overlay, 0, 0, tmp.width, tmp.height);
-  const img = tctx.getImageData(0, 0, tmp.width, tmp.height).data;
-
-  let runs = 0;
-  for (let y = 0; y < cssH && runs < maxRuns; y += step) {
-    let drawing = false, x0 = 0;
-    for (let x = 0; x < cssW; x += step) {
-      const px = Math.min(tmp.width -1, Math.floor(x * dpr));
-      const py = Math.min(tmp.height-1, Math.floor(y * dpr));
-      const o  = (py * tmp.width + px) * 4;
-      const a  = img[o+3]; // alpha
-      const isInk = a >= thr;
-
-      if (isInk && !drawing) { drawing = true; x0 = x; }
-      if ((!isInk && drawing) || (isInk && x + step >= cssW)) {
-        const x1 = isInk ? x + step : x;
-        dispatchStrokeRun(base, x0, y, x1, y, step);
-        runs++;
-        if (runs >= maxRuns) break;
-        drawing = false;
-      }
-    }
-  }
-  console.log(`[share] emulateStroke runs=${runs} step=${step} thr=${thr}`);
-}
-
-function dispatchStrokeRun(canvas, x0, y0, x1, y1, step){
-  const rect = canvas.getBoundingClientRect();
-  const toClient = (cx, cy) => ({
-    clientX: rect.left + cx * (rect.width  / canvas.clientWidth),
-    clientY: rect.top  + cy * (rect.height / canvas.clientHeight),
-    bubbles: true, cancelable: true
-  });
-  const makeEvt = (type, cx, cy) => {
-    try { return new PointerEvent(type, toClient(cx, cy)); }
-    catch { return new MouseEvent(type.replace('pointer','mouse'), toClient(cx, cy)); }
-  };
-  const down = (cx, cy) => canvas.dispatchEvent(makeEvt('pointerdown', cx, cy));
-  const move = (cx, cy) => canvas.dispatchEvent(makeEvt('pointermove', cx, cy));
-  const up   = (cx, cy) => canvas.dispatchEvent(makeEvt('pointerup',   cx, cy));
-
-  down(x0, y0);
-  const len = Math.max(1, Math.floor((x1 - x0) / step));
-  for (let i = 1; i <= len; i++) move(x0 + i*step, y0);
-  up(x1, y1);
-}
-
-// ========== メイン：オーバーレイ描画＋共有 ==========
+// ===================== メイン：オーバーレイ描画＋共有 =====================
 function showOnOverlay(dataURL){
   const base = pickVisibleCanvas();
   if (!base) return alert('キャンバスが見つかりません');
@@ -163,8 +148,7 @@ function showOnOverlay(dataURL){
     // 収まる倍率（上限クリップしない）
     const baseFit = Math.min(cssW / img.width, cssH / img.height);
 
-    // ★オーバー拡大（ズーム演出）：2,3,4 など好みで
-    const OVERSCALE = 1;
+    // オーバー拡大（ズーム風）
     const scaleDisplay = baseFit * OVERSCALE;
 
     const w = img.width  * scaleDisplay;
@@ -176,13 +160,12 @@ function showOnOverlay(dataURL){
     ctx.setTransform(1,0,0,1,0,0);
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, cssW, cssH);
-    ctx.drawImage(img, x, y, w, h);  // はみ出しはオーバーレイ外で自然にクリップ
+    ctx.drawImage(img, x, y, w, h);  // はみ出しは自然にクリップ
 
-    // === 共有（socket優先→擬似描画） ===
-    const rect = { x, y, w, h };
-    const ok = trySocketShare(dataURL, rect);
-    if (!ok) {
-      emulateStrokeFromOverlay(overlay, base, { step: 8, threshold: 160, maxRuns: 3000 });
+    // 共有（socket直送。サイトの描画イベントに合わせる）
+    const sent = trySocketShare({ x, y, w, h }, base, overlay);
+    if (!sent) {
+      console.log('[share] socket未使用/未検出（ローカル表示のみ）');
     }
   };
   img.onerror = ()=>alert('画像の読み込みに失敗しました');
