@@ -75,19 +75,81 @@ function ensureOverlay(base){
 }
 
 // ========== 共有（socket優先→擬似描画） ==========
-function trySocketShare(dataURL, rect){
-  try{
-    if (window.socket && typeof socket.emit === 'function') {
-      const payload = { type: 'image', data: dataURL, x: rect.x, y: rect.y, w: rect.w, h: rect.h };
-      const events = ['image','draw','stroke','line']; // ★実装に合わせて先頭を正解に
-      for (const ev of events) {
-        try { socket.emit(ev, payload); console.log('[share] socket.emit:', ev); return true; } catch {}
+// 画像をリサイズ＆JPEG圧縮してから送る（サイズ対策）
+async function compressDataURL(dataURL, quality=0.7, maxSide=1600){
+  if (!/^data:image\/(png|jpeg|webp);base64,/.test(dataURL)) return dataURL;
+  const img = new Image();
+  await new Promise((r, j)=>{ img.onload=r; img.onerror=j; img.src=dataURL; });
+  let w = img.naturalWidth, h = img.naturalHeight;
+  const scale = Math.min(1, maxSide / Math.max(w, h));
+  if (scale < 1) { w = Math.round(w*scale); h = Math.round(h*scale); }
+  const c = document.createElement('canvas');
+  c.width  = w;
+  c.height = h;
+  c.getContext('2d').drawImage(img, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', quality);
+}
+
+// ACKつき送信。ACKが返らない/失敗なら false を返す
+function emitWithAck(ev, payload, timeoutMs=1500){
+  return new Promise((resolve) => {
+    try {
+      if (!window.socket || typeof socket.emit !== 'function' || !socket.connected) {
+        return resolve(false);
       }
+      if (typeof socket.emitWithAck === 'function') {
+        const p = socket.emitWithAck(ev, payload);
+        let done = false;
+        const t = setTimeout(()=>{ if(!done) resolve(false); }, timeoutMs);
+        p.then(()=>{ done=true; clearTimeout(t); resolve(true); })
+         .catch(()=>{ done=true; clearTimeout(t); resolve(false); });
+      } else if (typeof socket.timeout === 'function') {
+        socket.timeout(timeoutMs).emit(ev, payload, (err, ok) => {
+          resolve(!err && (ok === undefined || ok === true));
+        });
+      } else {
+        // ACKなし環境。成功判定できないため false でフォールバックへ
+        socket.emit(ev, payload);
+        resolve(false);
+      }
+    } catch {
+      resolve(false);
     }
-  }catch{}
+  });
+}
+
+// 送信ロジック：最有力のイベント名を先頭に（あなたの実装に合わせて並び替えてOK）
+async function trySocketShare(dataURL, overlay, base){
+  try{
+    if (!window.socket || !socket.connected) return false;
+
+    // overlayのキャンバス位置を base キャンバスに対する正規化で送る（0..1）
+    const rect = overlay.getBoundingClientRect();
+    const baseRect = base.getBoundingClientRect();
+    const norm = {
+      ox: 0, oy: 0, ow: 1, oh: 1,
+      bx: (rect.left  - baseRect.left)  / baseRect.width,
+      by: (rect.top   - baseRect.top)   / baseRect.height,
+      bw:  rect.width / baseRect.width,
+      bh:  rect.height/ baseRect.height
+    };
+
+    const tiny = await compressDataURL(dataURL, 0.65, 1600);
+
+    const payload = { type: 'image', data: tiny, rect: norm };
+
+    const candidates = ['image', 'overlay:image', 'draw:image', 'stroke:image', 'line'];
+    for (const ev of candidates) {
+      const ok = await emitWithAck(ev, payload, 1500);
+      if (ok) { console.log('[share] ack ok via', ev); return true; }
+    }
+  }catch(e){
+    console.warn(e);
+  }
   return false;
 }
 
+// ========== 擬似描画（フォールバック用） ==========
 function emulateStrokeFromOverlay(overlay, base, opt){
   const step = Math.max(2, opt?.step ?? 8);
   const thr  = Math.min(255, Math.max(0, opt?.threshold ?? 160));
@@ -163,7 +225,7 @@ function showOnOverlay(dataURL){
     // 収まる倍率（上限クリップしない）
     const baseFit = Math.min(cssW / img.width, cssH / img.height);
 
-    // ★オーバー拡大（ズーム演出）：2,3,4 など好みで
+    // ズーム演出倍率（必要なら 2,3,4…）
     const OVERSCALE = 1;
     const scaleDisplay = baseFit * OVERSCALE;
 
@@ -179,12 +241,46 @@ function showOnOverlay(dataURL){
     ctx.drawImage(img, x, y, w, h);  // はみ出しはオーバーレイ外で自然にクリップ
 
     // === 共有（socket優先→擬似描画） ===
-    const rect = { x, y, w, h };
-    const ok = trySocketShare(dataURL, rect);
-    if (!ok) {
-      emulateStrokeFromOverlay(overlay, base, { step: 8, threshold: 160, maxRuns: 3000 });
-    }
+    (async () => {
+      const ok = await trySocketShare(overlay.toDataURL('image/png'), overlay, base);
+      if (!ok) {
+        emulateStrokeFromOverlay(overlay, base, { step: 8, threshold: 160, maxRuns: 3000 });
+      }
+    })();
   };
   img.onerror = ()=>alert('画像の読み込みに失敗しました');
   img.src = dataURL;
+}
+
+// ========== 受信側（相手画面）の描画リスナ ==========
+// ※同じファイルに置いてOK（自画面に戻ってきても見た目上問題なし）
+if (window.socket && typeof socket.on === 'function') {
+  socket.on('image', ({ data, rect }) => {
+    const base = pickVisibleCanvas();
+    if (!base) return;
+    const ctx = base.getContext('2d');
+
+    const img = new Image();
+    img.onload = () => {
+      const r = base.getBoundingClientRect();
+      const x = rect.bx * r.width;
+      const y = rect.by * r.height;
+      const w = rect.bw * r.width;
+      const h = rect.bh * r.height;
+
+      const dpr = window.devicePixelRatio || 1;
+      const prev = ctx.getTransform ? ctx.getTransform() : null;
+
+      // DPR考慮（基準をCSSピクセルに合わせる）
+      ctx.save();
+      ctx.setTransform(1,0,0,1,0,0);
+      ctx.scale(dpr, dpr);
+      ctx.drawImage(img, x/dpr, y/dpr, w/dpr, h/dpr);
+      ctx.restore();
+
+      // 古いブラウザ対策：必要なら Transform を戻す
+      if (prev && ctx.setTransform) ctx.setTransform(prev);
+    };
+    img.src = data;
+  });
 }
